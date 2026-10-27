@@ -8,6 +8,7 @@ import com.example.hostel_managment.demo.job.dto.JobResponse;
 import com.example.hostel_managment.demo.job.dto.NotSolvedJobRequest;
 import com.example.hostel_managment.demo.job.dto.RejectCompletionRequest;
 import com.example.hostel_managment.demo.job.service.JobRequestService;
+import com.example.hostel_managment.demo.auth.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -20,7 +21,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/jobs")
@@ -34,62 +38,89 @@ public class JobRequestController {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<JobResponse> create(@Valid @RequestBody CreateJobRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<JobResponse> create(@Valid @RequestBody CreateJobRequest request,
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        CreateJobRequest authenticatedRequest = new CreateJobRequest(user.userId(),
+                request.problemDescription(), request.category(), request.locationType(),
+                request.block(), request.floor(), request.roomNumber(), request.areaName(),
+                request.urgency(), request.contactNumber(), request.beforeImageUrl());
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(authenticatedRequest));
     }
 
     @GetMapping("/customer/{customerId}")
-    public List<JobResponse> customerJobs(@PathVariable Long customerId) {
-        return service.findCustomerJobs(customerId);
+    @PreAuthorize("hasRole('STUDENT')")
+    public List<JobResponse> customerJobs(@PathVariable Long customerId,
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return service.findCustomerJobs(user.userId());
     }
 
     @GetMapping("/admin")
+    @PreAuthorize("hasRole('ADMIN')")
     public List<JobResponse> adminJobs() {
         return service.findAllJobs();
     }
 
     @GetMapping("/worker")
+    @PreAuthorize("hasRole('WORKER')")
     public List<JobResponse> workerJobs() {
         return service.findWorkerJobs();
     }
 
     @GetMapping("/similar")
+    @PreAuthorize("hasRole('STUDENT')")
     public List<JobResponse> similar(@RequestParam String block, @RequestParam Integer floor,
             @RequestParam JobCategory category, @RequestParam LocationType locationType) {
         return service.findSimilar(block, floor, category, locationType);
     }
 
     @PutMapping("/{jobId}/cancel")
-    public ResponseEntity<Void> cancel(@PathVariable Long jobId, @RequestParam Long customerId) {
-        service.cancel(jobId, customerId);
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<Void> cancel(@PathVariable Long jobId, @RequestParam(required = false) Long customerId,
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        service.cancel(jobId, user.userId());
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{jobId}/start")
-    public JobResponse start(@PathVariable Long jobId, @RequestParam Long workerId) {
-        return service.start(jobId, workerId);
+    @PreAuthorize("hasRole('WORKER')")
+    public JobResponse start(@PathVariable Long jobId, @RequestParam(required = false) Long workerId,
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return service.start(jobId, requireWorkerId(user));
     }
 
     @PostMapping("/{jobId}/complete")
-    public JobResponse complete(@PathVariable Long jobId, @RequestParam Long workerId,
-            @Valid @RequestBody CompleteJobRequest request) {
-        return service.complete(jobId, workerId, request);
+    @PreAuthorize("hasRole('WORKER')")
+    public JobResponse complete(@PathVariable Long jobId, @RequestParam(required = false) Long workerId,
+            @Valid @RequestBody CompleteJobRequest request, @AuthenticationPrincipal AuthenticatedUser user) {
+        return service.complete(jobId, requireWorkerId(user), request);
     }
 
     @PutMapping("/{jobId}/not-solved")
-    public JobResponse notSolved(@PathVariable Long jobId, @RequestParam Long workerId,
-            @Valid @RequestBody NotSolvedJobRequest request) {
-        return service.notSolved(jobId, workerId, request);
+    @PreAuthorize("hasRole('WORKER')")
+    public JobResponse notSolved(@PathVariable Long jobId, @RequestParam(required = false) Long workerId,
+            @Valid @RequestBody NotSolvedJobRequest request, @AuthenticationPrincipal AuthenticatedUser user) {
+        return service.notSolved(jobId, requireWorkerId(user), request);
     }
 
     @PutMapping("/{jobId}/confirm")
-    public JobResponse confirm(@PathVariable Long jobId, @RequestParam Long customerId) {
-        return service.confirm(jobId, customerId);
+    @PreAuthorize("hasRole('STUDENT')")
+    public JobResponse confirm(@PathVariable Long jobId, @RequestParam(required = false) Long customerId,
+            @AuthenticationPrincipal AuthenticatedUser user) {
+        return service.confirm(jobId, user.userId());
     }
 
     @PutMapping("/{jobId}/reject")
-    public JobResponse reject(@PathVariable Long jobId, @RequestParam Long customerId,
-            @Valid @RequestBody RejectCompletionRequest request) {
-        return service.reject(jobId, customerId, request);
+    @PreAuthorize("hasRole('STUDENT')")
+    public JobResponse reject(@PathVariable Long jobId, @RequestParam(required = false) Long customerId,
+            @Valid @RequestBody RejectCompletionRequest request, @AuthenticationPrincipal AuthenticatedUser user) {
+        return service.reject(jobId, user.userId(), request);
+    }
+
+    private Long requireWorkerId(AuthenticatedUser user) {
+        if (user.workerId() == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Worker profile is required");
+        }
+        return user.workerId();
     }
 }

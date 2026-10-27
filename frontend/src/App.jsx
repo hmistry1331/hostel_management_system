@@ -1,11 +1,11 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { useEffect } from 'react'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import DashboardLayout from './components/DashboardLayout'
 import { getJobsForAdmin } from './api/jobRequests'
 import { getAvailableWorkers } from './api/workers'
 import JobRequestsPage from './pages/JobRequestsPage'
 import OverviewPage from './pages/OverviewPage'
-import RoleSelectionPage from './pages/RoleSelectionPage'
+import AuthPage from './pages/AuthPage'
 import StudentPage from './pages/StudentPage'
 import WorkerPage from './pages/WorkerPage'
 
@@ -28,6 +28,14 @@ function AdminArea() {
   return <DashboardLayout role="admin">{content}</DashboardLayout>
 }
 
+function ProtectedRole({ role, children }) {
+  const location = useLocation()
+  const user = JSON.parse(localStorage.getItem('hostel_user') || 'null')
+  if (!user || user.role !== role) return <Navigate to="/" replace state={{ from: location.pathname }} />
+  return children
+}
+
 export default function App() {
-  return <BrowserRouter><Routes><Route index element={<RoleSelectionPage />} /><Route path="/admin/*" element={<AdminArea />} /><Route path="/worker" element={<DashboardLayout role="worker"><WorkerPage /></DashboardLayout>} /><Route path="/student" element={<DashboardLayout role="student"><StudentPage /></DashboardLayout>} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></BrowserRouter>
+  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('hostel_user') || 'null'))
+  return <BrowserRouter><Routes><Route index element={user ? <Navigate to={user.role === 'ADMIN' ? '/admin' : user.role === 'WORKER' ? '/worker' : '/student'} replace /> : <AuthPage onAuthenticated={setUser} />} /><Route path="/admin/*" element={<ProtectedRole role="ADMIN"><AdminArea /></ProtectedRole>} /><Route path="/worker" element={<ProtectedRole role="WORKER"><DashboardLayout role="worker"><WorkerPage /></DashboardLayout></ProtectedRole>} /><Route path="/student" element={<ProtectedRole role="STUDENT"><DashboardLayout role="student"><StudentPage /></DashboardLayout></ProtectedRole>} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></BrowserRouter>
 }
