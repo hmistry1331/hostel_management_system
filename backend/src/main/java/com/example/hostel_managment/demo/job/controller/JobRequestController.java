@@ -7,6 +7,7 @@ import com.example.hostel_managment.demo.job.dto.CompleteJobRequest;
 import com.example.hostel_managment.demo.job.dto.JobResponse;
 import com.example.hostel_managment.demo.job.dto.NotSolvedJobRequest;
 import com.example.hostel_managment.demo.job.dto.RejectCompletionRequest;
+import com.example.hostel_managment.demo.job.dto.SimilarJobResponse;
 import com.example.hostel_managment.demo.job.service.JobRequestService;
 import com.example.hostel_managment.demo.auth.security.AuthenticatedUser;
 import jakarta.validation.Valid;
@@ -23,12 +24,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/jobs")
-@CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173"})
 public class JobRequestController {
 
     private final JobRequestService service;
@@ -63,13 +62,13 @@ public class JobRequestController {
 
     @GetMapping("/worker")
     @PreAuthorize("hasRole('WORKER')")
-    public List<JobResponse> workerJobs() {
-        return service.findWorkerJobs();
+    public List<JobResponse> workerJobs(@AuthenticationPrincipal AuthenticatedUser user) {
+        return service.findWorkerJobs(requireWorkerId(user));
     }
 
     @GetMapping("/similar")
     @PreAuthorize("hasRole('STUDENT')")
-    public List<JobResponse> similar(@RequestParam String block, @RequestParam Integer floor,
+    public List<SimilarJobResponse> similar(@RequestParam String block, @RequestParam Integer floor,
             @RequestParam JobCategory category, @RequestParam LocationType locationType) {
         return service.findSimilar(block, floor, category, locationType);
     }
@@ -101,6 +100,26 @@ public class JobRequestController {
     public JobResponse notSolved(@PathVariable Long jobId, @RequestParam(required = false) Long workerId,
             @Valid @RequestBody NotSolvedJobRequest request, @AuthenticationPrincipal AuthenticatedUser user) {
         return service.notSolved(jobId, requireWorkerId(user), request);
+    }
+
+    @PutMapping("/admin/{jobId}/start")
+    @PreAuthorize("hasRole('ADMIN')")
+    public JobResponse adminStart(@PathVariable Long jobId, @RequestParam Long workerId) {
+        return service.start(jobId, workerId);
+    }
+
+    @PostMapping("/admin/{jobId}/complete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public JobResponse adminComplete(@PathVariable Long jobId, @RequestParam Long workerId,
+            @Valid @RequestBody CompleteJobRequest request) {
+        return service.complete(jobId, workerId, request);
+    }
+
+    @PutMapping("/admin/{jobId}/not-solved")
+    @PreAuthorize("hasRole('ADMIN')")
+    public JobResponse adminNotSolved(@PathVariable Long jobId, @RequestParam Long workerId,
+            @Valid @RequestBody NotSolvedJobRequest request) {
+        return service.notSolved(jobId, workerId, request);
     }
 
     @PutMapping("/{jobId}/confirm")

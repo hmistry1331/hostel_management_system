@@ -10,13 +10,17 @@ import com.example.hostel_managment.demo.job.dto.CompleteJobRequest;
 import com.example.hostel_managment.demo.job.dto.JobResponse;
 import com.example.hostel_managment.demo.job.dto.NotSolvedJobRequest;
 import com.example.hostel_managment.demo.job.dto.RejectCompletionRequest;
+import com.example.hostel_managment.demo.job.dto.SimilarJobResponse;
 import com.example.hostel_managment.demo.job.repository.JobRequestRepository;
+import com.example.hostel_managment.demo.slot.service.TimeSlotService;
+import com.example.hostel_managment.demo.slot.repository.TimeSlotRepository;
 import java.util.List;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Service
 public class JobRequestService {
@@ -26,9 +30,19 @@ public class JobRequestService {
             JobStatus.IN_PROGRESS, JobStatus.NOT_SOLVED);
 
     private final JobRequestRepository repository;
+    private final TimeSlotService timeSlotService;
+    private final TimeSlotRepository timeSlotRepository;
 
-    public JobRequestService(JobRequestRepository repository) {
+    @Autowired
+    public JobRequestService(JobRequestRepository repository, TimeSlotService timeSlotService,
+            TimeSlotRepository timeSlotRepository) {
         this.repository = repository;
+        this.timeSlotService = timeSlotService;
+        this.timeSlotRepository = timeSlotRepository;
+    }
+
+    public JobRequestService(JobRequestRepository repository, TimeSlotService timeSlotService) {
+        this(repository, timeSlotService, null);
     }
 
     @Transactional
@@ -39,40 +53,40 @@ public class JobRequestService {
                 request.roomNumber(), request.areaName(),
                 request.urgency() == null ? Urgency.NORMAL : request.urgency(),
                 request.contactNumber(), request.beforeImageUrl());
-        return JobResponse.from(repository.save(job));
+        return response(repository.save(job));
     }
 
     @Transactional(readOnly = true)
     public List<JobResponse> findCustomerJobs(Long customerId) {
         return repository.findByCustomerIdOrderByCreatedAtDesc(customerId)
-                .stream().map(JobResponse::from).toList();
+                .stream().map(this::response).toList();
     }
 
     @Transactional(readOnly = true)
     public List<JobResponse> findAllJobs() {
         return repository.findAllByOrderByCreatedAtDesc()
-                .stream().map(JobResponse::from).toList();
+                .stream().map(this::response).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<JobResponse> findWorkerJobs() {
-        return repository.findByStatusInOrderByCreatedAtDesc(
-                List.of(JobStatus.SUBMITTED, JobStatus.NOT_SOLVED, JobStatus.ASSIGNED))
-                .stream().map(JobResponse::from).toList();
+    public List<JobResponse> findWorkerJobs(Long workerId) {
+        return repository.findByWorkerIdAndStatusInOrderByCreatedAtDesc(workerId,
+                List.of(JobStatus.ASSIGNED, JobStatus.SCHEDULED, JobStatus.IN_PROGRESS, JobStatus.NOT_SOLVED))
+                .stream().map(this::response).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<JobResponse> findSimilar(String block, Integer floor, JobCategory category,
+    public List<SimilarJobResponse> findSimilar(String block, Integer floor, JobCategory category,
             LocationType locationType) {
         return repository
                 .findByBlockAndFloorAndCategoryAndLocationTypeAndStatusInOrderByUrgencyDescCreatedAtAsc(
                         block, floor, category, locationType, OPEN_STATUSES)
-                .stream().map(JobResponse::from).toList();
+                .stream().map(SimilarJobResponse::from).toList();
     }
 
     @Transactional
     public void cancel(Long jobId, Long customerId) {
-        JobRequest job = repository.findById(jobId)
+        JobRequest job = repository.findByIdForUpdate(jobId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Complaint not found"));
         if (!Objects.equals(job.getCustomerId(), customerId)) {
@@ -84,47 +98,55 @@ public class JobRequestService {
         } catch (IllegalStateException exception) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, exception.getMessage(), exception);
         }
+        timeSlotService.releaseSlotForJob(jobId);
     }
 
     @Transactional
     public JobResponse start(Long jobId, Long workerId) {
         JobRequest job = findJob(jobId);
         update(job, () -> job.start(workerId));
-        return JobResponse.from(job);
+        return response(job);
     }
 
     @Transactional
     public JobResponse complete(Long jobId, Long workerId, CompleteJobRequest request) {
         JobRequest job = findJob(jobId);
         update(job, () -> job.complete(workerId, request.afterImageUrl(), request.idCardPhotoUrl()));
-        return JobResponse.from(job);
+        return response(job);
     }
 
     @Transactional
     public JobResponse notSolved(Long jobId, Long workerId, NotSolvedJobRequest request) {
         JobRequest job = findJob(jobId);
         update(job, () -> job.markNotSolved(workerId, request.reason()));
-        return JobResponse.from(job);
+        timeSlotService.releaseSlotForJob(jobId);
+        return response(job);
     }
 
     @Transactional
     public JobResponse confirm(Long jobId, Long customerId) {
         JobRequest job = findJob(jobId);
         update(job, () -> job.confirmByStudent(customerId));
-        return JobResponse.from(job);
+        return response(job);
     }
 
     @Transactional
     public JobResponse reject(Long jobId, Long customerId, RejectCompletionRequest request) {
         JobRequest job = findJob(jobId);
         update(job, () -> job.rejectByStudent(customerId, request.reason()));
-        return JobResponse.from(job);
+        timeSlotService.releaseSlotForJob(jobId);
+        return response(job);
     }
 
     private JobRequest findJob(Long jobId) {
         return repository.findById(jobId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Complaint not found"));
+    }
+
+    private JobResponse response(JobRequest job) {
+        return timeSlotRepository == null ? JobResponse.from(job)
+                : JobResponse.from(job, timeSlotRepository.findByJobId(job.getId()).orElse(null));
     }
 
     private void update(JobRequest job, Runnable operation) {

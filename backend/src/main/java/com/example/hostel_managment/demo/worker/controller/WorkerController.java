@@ -3,6 +3,9 @@ package com.example.hostel_managment.demo.worker.controller;
 import com.example.hostel_managment.demo.job.dto.JobResponse;
 import com.example.hostel_managment.demo.worker.dto.CreateWorkerRequest;
 import com.example.hostel_managment.demo.worker.dto.WorkerResponse;
+import com.example.hostel_managment.demo.worker.dto.WorkerScheduleResponse;
+import com.example.hostel_managment.demo.worker.dto.CreateStaffRequest;
+import com.example.hostel_managment.demo.auth.service.AuthService;
 import com.example.hostel_managment.demo.worker.service.WorkerService;
 import com.example.hostel_managment.demo.auth.security.AuthenticatedUser;
 import jakarta.validation.Valid;
@@ -17,19 +20,26 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.server.ResponseStatusException;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173"})
 public class WorkerController {
 
     private final WorkerService service;
+    private final AuthService authService;
 
-    public WorkerController(WorkerService service) {
+    public WorkerController(WorkerService service, AuthService authService) {
         this.service = service;
+        this.authService = authService;
+    }
+
+    @PostMapping("/admin/staff")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<WorkerResponse> createStaff(@Valid @RequestBody CreateStaffRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.createStaff(request));
     }
 
     @PostMapping("/admin/workers")
@@ -50,13 +60,19 @@ public class WorkerController {
         return service.assign(jobId, workerId);
     }
 
-    @PostMapping("/worker/jobs/{jobId}/accept")
+    @GetMapping("/worker/schedule/today")
     @PreAuthorize("hasRole('WORKER')")
-    public JobResponse accept(@PathVariable Long jobId, @RequestParam(required = false) Long workerId,
-            @AuthenticationPrincipal AuthenticatedUser user) {
+    public List<WorkerScheduleResponse> today(@AuthenticationPrincipal AuthenticatedUser user) {
         if (user.workerId() == null) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Worker profile is required");
         }
-        return service.assign(jobId, user.workerId());
+        return service.schedule(user.workerId(), LocalDate.now());
     }
+
+    @GetMapping("/admin/schedule/today")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<WorkerScheduleResponse> adminToday() {
+        return service.supervisorSchedule(LocalDate.now());
+    }
+
 }

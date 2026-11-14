@@ -6,6 +6,6 @@ import jakarta.validation.constraints.Size;
 
 public record AuthorizeRoomEntryRequest(
         @NotNull Long workerId,
-        @NotNull Long authorizedByUserId,
+        Long authorizedByUserId,
         @NotBlank @Size(max = 500) String reason) {
 }

@@ -18,5 +18,5 @@ public record CreateJobRequest(
         @Size(max = 120) String areaName,
         Urgency urgency,
         @Size(max = 30) String contactNumber,
-        @NotBlank @Size(max = 500) String beforeImageUrl) {
+        @Size(max = 500) String beforeImageUrl) {
 }

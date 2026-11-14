@@ -16,7 +16,15 @@ public record CreateWorkerRequest(
         @Size(max = 5) String shiftStart,
         @Size(max = 5) String shiftEnd,
         @Size(max = 50) String workingDays,
+        @Min(15) int slotDurationMinutes,
         boolean hasSmartphone,
         boolean managedBySupervisor,
         @NotNull PreferredLanguage preferredLanguage) {
+    public CreateWorkerRequest(Long userId, String name, TradeCategory tradeCategory,
+            int experienceYears, boolean available, String shiftStart, String shiftEnd,
+            String workingDays, boolean hasSmartphone, boolean managedBySupervisor,
+            PreferredLanguage preferredLanguage) {
+        this(userId, name, tradeCategory, experienceYears, available, shiftStart, shiftEnd,
+                workingDays, 60, hasSmartphone, managedBySupervisor, preferredLanguage);
+    }
 }

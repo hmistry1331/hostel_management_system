@@ -27,12 +27,13 @@ public class RoomEntryLogService {
     }
 
     @Transactional
-    public RoomEntryLogResponse authorize(Long jobId, AuthorizeRoomEntryRequest request) {
+    public RoomEntryLogResponse authorize(Long jobId, AuthorizeRoomEntryRequest request, Long authorizedByUserId) {
         JobRequest job = findJob(jobId);
         if (job.getUrgency() != com.example.hostel_managment.demo.job.domain.Urgency.URGENT) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Room entry authorization is only available for urgent complaints");
         }
+
         if (job.getLocationType() != LocationType.ROOM) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Room entry authorization requires a room complaint");
@@ -46,7 +47,11 @@ public class RoomEntryLogService {
                     "Complaint must be scheduled or in progress");
         }
         return RoomEntryLogResponse.from(logRepository.save(new RoomEntryLog(jobId,
-                request.workerId(), request.authorizedByUserId(), request.reason())));
+                request.workerId(), authorizedByUserId, request.reason())));
+    }
+
+    public RoomEntryLogResponse authorize(Long jobId, AuthorizeRoomEntryRequest request) {
+        return authorize(jobId, request, request.authorizedByUserId());
     }
 
     @Transactional(readOnly = true)
@@ -55,26 +60,48 @@ public class RoomEntryLogService {
                 .map(RoomEntryLogResponse::from).toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<RoomEntryLogResponse> findForWorker(Long jobId, Long workerId) {
+        JobRequest job = findJob(jobId);
+        if (workerId == null || !workerId.equals(job.getWorkerId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Only the assigned worker can view this entry log");
+        }
+        return findForJob(jobId);
+    }
+
     @Transactional
-    public RoomEntryLogResponse markExited(Long logId) {
+    public RoomEntryLogResponse markExited(Long logId, Long workerId) {
         RoomEntryLog log = findLog(logId);
+        verifyWorker(log, workerId);
         try {
             log.markExited();
         } catch (IllegalStateException exception) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, exception.getMessage(), exception);
         }
+
         return RoomEntryLogResponse.from(log);
     }
 
+    public RoomEntryLogResponse markExited(Long logId) {
+        return markExited(logId, findLog(logId).getWorkerId());
+    }
+
     @Transactional
-    public RoomEntryLogResponse markKeysReturned(Long logId) {
+    public RoomEntryLogResponse markKeysReturned(Long logId, Long workerId) {
         RoomEntryLog log = findLog(logId);
+        verifyWorker(log, workerId);
         try {
             log.markKeysReturned();
         } catch (IllegalStateException exception) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, exception.getMessage(), exception);
         }
+
         return RoomEntryLogResponse.from(log);
+    }
+
+    public RoomEntryLogResponse markKeysReturned(Long logId) {
+        return markKeysReturned(logId, findLog(logId).getWorkerId());
     }
 
     private JobRequest findJob(Long jobId) {
@@ -87,5 +114,12 @@ public class RoomEntryLogService {
         return logRepository.findById(logId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Room entry log not found"));
+    }
+
+    private void verifyWorker(RoomEntryLog log, Long workerId) {
+        if (!log.getWorkerId().equals(workerId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Only the assigned worker can update this entry log");
+        }
     }
 }

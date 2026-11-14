@@ -15,6 +15,12 @@ public interface TimeSlotRepository extends JpaRepository<TimeSlot, Long> {
     List<TimeSlot> findByWorkerIdAndSlotDateAndBookedFalseOrderByStartTime(
             Long workerId, LocalDate slotDate);
 
+    List<TimeSlot> findByWorkerIdAndSlotDateBetweenAndBookedTrueOrderBySlotDateAscStartTimeAsc(
+            Long workerId, LocalDate from, LocalDate to);
+
+    List<TimeSlot> findByWorkerIdAndSlotDateBetweenAndBookedFalseOrderBySlotDateAscStartTimeAsc(
+            Long workerId, LocalDate from, LocalDate to);
+
     Optional<TimeSlot> findByIdAndBookedFalse(Long id);
 
     @Modifying
@@ -27,4 +33,6 @@ public interface TimeSlotRepository extends JpaRepository<TimeSlot, Long> {
 
     boolean existsByWorkerIdAndSlotDateAndStartTime(
             Long workerId, LocalDate slotDate, LocalTime startTime);
+
+    Optional<TimeSlot> findByJobId(Long jobId);
 }

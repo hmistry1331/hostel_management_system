@@ -6,13 +6,15 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "time_slots")
+@Table(name = "time_slots", uniqueConstraints = @UniqueConstraint(
+        name = "uk_time_slot_worker_date_start", columnNames = {"worker_id", "slot_date", "start_time"}))
 @Getter
 @NoArgsConstructor
 public class TimeSlot {
@@ -36,7 +38,7 @@ public class TimeSlot {
     @Column(name = "is_booked", nullable = false)
     private boolean booked;
 
-    @Column(name = "job_id")
+    @Column(name = "job_id", unique = true)
     private Long jobId;
 
     public TimeSlot(Long workerId, LocalDate slotDate, LocalTime startTime, LocalTime endTime) {

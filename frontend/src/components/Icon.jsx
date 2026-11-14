@@ -10,6 +10,8 @@ const iconPaths = {
   arrow: <><path d="M5 12h14M13 6l6 6-6 6" /></>,
   search: <><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></>,
   menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
+  user: <><circle cx="12" cy="8" r="3.5" /><path d="M5 21a7 7 0 0 1 14 0" /></>,
+  logout: <><path d="M10 17l5-5-5-5M15 12H3M21 19V5a2 2 0 0 0-2-2h-4" /></>,
 }
 
 export default function Icon({ name, size = 18 }) {

@@ -10,15 +10,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "job_requests", uniqueConstraints = {
-        @UniqueConstraint(name = "uk_job_request_id", columnNames = "id")
-})
+@Table(name = "job_requests")
 @Getter
 @NoArgsConstructor
 public class JobRequest {
@@ -63,7 +60,7 @@ public class JobRequest {
     @Column(name = "contact_number", length = 30)
     private String contactNumber;
 
-    @Column(name = "before_image_url", nullable = false, length = 500)
+    @Column(name = "before_image_url", length = 500)
     private String beforeImageUrl;
 
     @Column(name = "after_image_url", length = 500)
@@ -149,6 +146,7 @@ public class JobRequest {
         if (status == JobStatus.COMPLETED || status == JobStatus.CANCELLED) {
             throw new IllegalStateException("A completed or cancelled complaint cannot be cancelled");
         }
+        scheduledSlotId = null;
         status = JobStatus.CANCELLED;
     }
 
@@ -157,6 +155,8 @@ public class JobRequest {
             throw new IllegalStateException("Only submitted or not-solved complaints can be assigned");
         }
         this.workerId = workerId;
+        scheduledSlotId = null;
+        notSolvedReason = null;
         this.status = JobStatus.ASSIGNED;
     }
 
@@ -166,6 +166,14 @@ public class JobRequest {
         }
         scheduledSlotId = slotId;
         status = JobStatus.SCHEDULED;
+    }
+
+    public void unschedule() {
+        if (status != JobStatus.SCHEDULED) {
+            throw new IllegalStateException("Only scheduled complaints can be unscheduled");
+        }
+        scheduledSlotId = null;
+        status = JobStatus.ASSIGNED;
     }
 
     public void start(Long workerId) {
@@ -178,8 +186,9 @@ public class JobRequest {
 
     public void complete(Long workerId, String afterImageUrl, String idCardPhotoUrl) {
         verifyWorker(workerId);
-        if (status != JobStatus.IN_PROGRESS) {
-            throw new IllegalStateException("Only in-progress complaints can be completed");
+        if (status != JobStatus.ASSIGNED && status != JobStatus.SCHEDULED
+                && status != JobStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Only assigned complaints can be completed");
         }
         if (isBlank(afterImageUrl) || isBlank(idCardPhotoUrl)) {
             throw new IllegalArgumentException("After-photo and student ID photo are required");
@@ -193,13 +202,15 @@ public class JobRequest {
 
     public void markNotSolved(Long workerId, NotSolvedReason reason) {
         verifyWorker(workerId);
-        if (status != JobStatus.IN_PROGRESS) {
-            throw new IllegalStateException("Only in-progress complaints can be marked not solved");
+        if (status != JobStatus.ASSIGNED && status != JobStatus.SCHEDULED
+                && status != JobStatus.IN_PROGRESS) {
+            throw new IllegalStateException("Only assigned complaints can be marked not solved");
         }
         if (reason == null) {
             throw new IllegalArgumentException("A not-solved reason is required");
         }
         notSolvedReason = reason;
+        scheduledSlotId = null;
         status = JobStatus.NOT_SOLVED;
     }
 
@@ -207,6 +218,9 @@ public class JobRequest {
         verifyCustomer(customerId);
         if (status != JobStatus.COMPLETED) {
             throw new IllegalStateException("Only completed complaints can be confirmed");
+        }
+        if (studentConfirmation != StudentConfirmation.PENDING) {
+            throw new IllegalStateException("This complaint has already been confirmed or rejected");
         }
         studentConfirmation = StudentConfirmation.CONFIRMED;
     }
@@ -216,12 +230,16 @@ public class JobRequest {
         if (status != JobStatus.COMPLETED) {
             throw new IllegalStateException("Only completed complaints can be rejected");
         }
+        if (studentConfirmation != StudentConfirmation.PENDING) {
+            throw new IllegalStateException("This complaint has already been confirmed or rejected");
+        }
         if (isBlank(reason)) {
             throw new IllegalArgumentException("A rejection reason is required");
         }
         rejectionReason = reason;
         studentConfirmation = StudentConfirmation.REJECTED;
-        status = JobStatus.SUBMITTED;
+        status = JobStatus.NOT_SOLVED;
+        scheduledSlotId = null;
     }
 
     private void verifyWorker(Long requestedWorkerId) {

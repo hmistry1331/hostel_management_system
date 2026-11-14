@@ -13,6 +13,7 @@ import com.example.hostel_managment.demo.job.dto.CompleteJobRequest;
 import com.example.hostel_managment.demo.job.dto.NotSolvedJobRequest;
 import com.example.hostel_managment.demo.job.dto.RejectCompletionRequest;
 import com.example.hostel_managment.demo.job.repository.JobRequestRepository;
+import com.example.hostel_managment.demo.slot.service.TimeSlotService;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,11 +28,14 @@ class JobCompletionServiceTest {
     @Mock
     private JobRequestRepository repository;
 
+    @Mock
+    private TimeSlotService timeSlotService;
+
     private JobRequestService service;
 
     @BeforeEach
     void setUp() {
-        service = new JobRequestService(repository);
+        service = new JobRequestService(repository, timeSlotService);
     }
 
     @Test
@@ -77,7 +81,7 @@ class JobCompletionServiceTest {
     }
 
     @Test
-    void studentRejectionReopensCompletedJob() {
+    void studentRejectionMarksJobNotSolved() {
         JobRequest job = assignedAndScheduledJob();
         job.start(3L);
         job.complete(3L, "https://example.test/after.jpg", "https://example.test/id.jpg");
@@ -86,7 +90,7 @@ class JobCompletionServiceTest {
         var response = service.reject(12L, 7L,
                 new RejectCompletionRequest("The leak is still present"));
 
-        assertEquals(JobStatus.SUBMITTED, response.status());
+        assertEquals(JobStatus.NOT_SOLVED, response.status());
         assertEquals("The leak is still present", response.rejectionReason());
     }
 

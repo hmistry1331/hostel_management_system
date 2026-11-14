@@ -18,7 +18,7 @@ public class JwtTokenService {
     private final long expirationSeconds;
 
     public JwtTokenService(
-            @Value("${app.auth.jwt-secret:change-this-development-secret-to-a-long-random-value}") String secret,
+            @Value("${app.auth.jwt-secret}") String secret,
             @Value("${app.auth.jwt-expiration-seconds:3600}") long expirationSeconds) {
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
         this.expirationSeconds = expirationSeconds;

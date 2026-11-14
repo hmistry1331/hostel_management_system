@@ -12,6 +12,7 @@ import com.example.hostel_managment.demo.worker.domain.TradeCategory;
 import com.example.hostel_managment.demo.worker.domain.Worker;
 import com.example.hostel_managment.demo.worker.dto.CreateWorkerRequest;
 import com.example.hostel_managment.demo.worker.repository.WorkerRepository;
+import com.example.hostel_managment.demo.slot.service.TimeSlotService;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,11 +30,14 @@ class WorkerServiceTest {
     @Mock
     private JobRequestRepository jobRepository;
 
+    @Mock
+    private TimeSlotService timeSlotService;
+
     private WorkerService service;
 
     @BeforeEach
     void setUp() {
-        service = new WorkerService(workerRepository, jobRepository);
+        service = new WorkerService(workerRepository, jobRepository, timeSlotService);
     }
 
     @Test

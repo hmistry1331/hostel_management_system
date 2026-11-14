@@ -16,6 +16,9 @@ import com.example.hostel_managment.demo.slot.dto.BookSlotRequest;
 import com.example.hostel_managment.demo.slot.repository.TimeSlotRepository;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,20 +40,21 @@ class TimeSlotServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new TimeSlotService(slotRepository, jobRepository);
+        service = new TimeSlotService(slotRepository, jobRepository,
+                Clock.fixed(Instant.parse("2026-10-25T00:00:00Z"), ZoneOffset.UTC));
     }
 
     @Test
     void booksAvailableSlotForAssignedJob() {
         JobRequest job = submittedJob();
         job.assignTo(3L);
-        TimeSlot slot = new TimeSlot(3L, LocalDate.of(2026, 10, 26),
+        TimeSlot slot = new TimeSlot(3L, LocalDate.of(2027, 10, 26),
                 LocalTime.of(14, 0), LocalTime.of(15, 0));
-        when(jobRepository.findById(12L)).thenReturn(Optional.of(job));
+        when(jobRepository.findByIdForUpdate(12L)).thenReturn(Optional.of(job));
         when(slotRepository.findById(8L)).thenReturn(Optional.of(slot));
         when(slotRepository.bookIfAvailable(8L, 12L)).thenReturn(1);
 
-        var response = service.book(8L, new BookSlotRequest(12L));
+        var response = service.book(8L, new BookSlotRequest(12L), 7L);
 
         assertEquals(true, response.booked());
         assertEquals(12L, response.jobId());
@@ -62,16 +66,27 @@ class TimeSlotServiceTest {
     void rejectsAlreadyBookedSlot() {
         JobRequest job = submittedJob();
         job.assignTo(3L);
-        TimeSlot slot = new TimeSlot(3L, LocalDate.of(2026, 10, 26),
+        TimeSlot slot = new TimeSlot(3L, LocalDate.of(2027, 10, 26),
                 LocalTime.of(14, 0), LocalTime.of(15, 0));
-        when(jobRepository.findById(12L)).thenReturn(Optional.of(job));
+        when(jobRepository.findByIdForUpdate(12L)).thenReturn(Optional.of(job));
         when(slotRepository.findById(8L)).thenReturn(Optional.of(slot));
         when(slotRepository.bookIfAvailable(8L, 12L)).thenReturn(0);
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class,
-                () -> service.book(8L, new BookSlotRequest(12L)));
+                () -> service.book(8L, new BookSlotRequest(12L), 7L));
 
         assertEquals(409, exception.getStatusCode().value());
+    }
+
+    @Test
+    void checksComplaintOwnershipBeforeStatus() {
+        JobRequest job = submittedJob();
+        when(jobRepository.findByIdForUpdate(12L)).thenReturn(Optional.of(job));
+
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class,
+                () -> service.book(8L, new BookSlotRequest(12L), 99L));
+
+        assertEquals(403, exception.getStatusCode().value());
     }
 
     private JobRequest submittedJob() {

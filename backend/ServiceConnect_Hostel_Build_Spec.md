@@ -7,14 +7,14 @@
 
 ## 0. Role & objective (prompt preamble)
 
-You are a senior full-stack engineer helping two students adapt an existing Spring Boot + React marketplace app into a **hostel maintenance management system** for a university hostel (Dhirubhai Ambani University).
+You are a senior full-stack engineer helping two students build a **hostel maintenance management system** for a university hostel (Dhirubhai Ambani University). The current backend is a fresh Spring Boot application in package `com.example.hostel_managment.demo`, not the former marketplace codebase.
 
 Your job on every task:
-1. Work **inside the existing codebase and conventions** (package `com.labourproject.project`, existing entities, DTOs, JWT security, `ddl-auto=validate`).
+1. Work **inside the existing codebase and conventions** (`com.example.hostel_managment.demo`, its entities/DTOs, custom JWT security, and current Maven configuration).
 2. Make **small, incremental, reviewable changes** — one feature/week at a time, as per the roadmap in Section 16.
-3. For every schema change, give the **SQL migration** (Hibernate will not create or alter tables).
+3. For every schema change, give the **SQL migration** and move the deployment configuration toward Flyway before production. Local development currently uses Hibernate schema updates.
 4. Prefer **simple, explainable solutions** — this is a student project that must be demoed and defended in front of a faculty panel.
-5. When something in this spec is ambiguous or conflicts with the code, **say so and ask** rather than guessing.
+5. When something in this spec is ambiguous or conflicts with the code, **say so and ask** rather than guessing. Do not assume marketplace features exist: Google OAuth, Cloudinary integration, reviews, AI classification, and a `GlobalExceptionHandler` are not currently implemented.
 
 ## 1. Project at a glance
 
@@ -37,8 +37,8 @@ Your job on every task:
 2. Focus **only** on hostel-maintenance features. Every suggestion must work in a college hostel context and be student-friendly.
 3. Maintenance staff are **not tech-savvy**, may speak only Gujarati/Hindi, and some have only keypad phones. Design the worker experience *from the worker's perspective, not ours*.
 4. Business logic lives in **Spring Boot**. Anything outside it (e.g. n8n for notification delivery, if used) handles **side effects only**.
-5. Don't silently change existing auth (JWT + Google OAuth2) behaviour.
-6. UI wording is hostel-specific: *Customer → Student*, *Worker → Maintenance Staff*, *Post a Service Request → Report a Room Issue*, *Admin → Supervisor*. Internal role strings (`CUSTOMER`, `WORKER`, `ADMIN`) stay unchanged for now to avoid touching JWT claims and security matchers; rename only in UI/labels.
+5. Keep the current stateless custom JWT authentication behaviour unless a task explicitly migrates it to a maintained JWT library. There is no Google OAuth2 flow in this codebase.
+6. UI wording is hostel-specific: *Student*, *Maintenance Staff*, *Report an Issue*, and *Supervisor*. Internal role strings are `STUDENT`, `WORKER`, and `ADMIN`.
 
 ---
 
@@ -49,16 +49,16 @@ Your job on every task:
 |---|---|
 | Language / runtime | Java 22 |
 | Framework | Spring Boot 4.0 |
-| Security | Spring Security, stateless JWT (jjwt), BCrypt, Google OAuth2 (auth-code flow, already built) |
-| Persistence | Spring Data JPA + Hibernate, **MySQL**, `spring.jpa.hibernate.ddl-auto=validate` |
+| Security | Spring Security, stateless custom JWT, BCrypt |
+| Persistence | Spring Data JPA + Hibernate, **MySQL**, currently `spring.jpa.hibernate.ddl-auto=update`; migrate to Flyway before production |
 | Validation | **`jakarta.validation`** (not `javax`) |
 | AI | Spring AI (OpenAI-compatible client) pointed at **Groq**, model `llama-3.3-70b-versatile` |
-| Image storage | Cloudinary (5 MB upload limit) |
+| Image storage | Planned; no upload provider is integrated yet |
 | Push notifications | Firebase Cloud Messaging (FCM, free) via Firebase Admin SDK |
 | SMS (fallback for keypad-phone staff) | SMS gateway — provider **TBD** (keep behind a `SmsService` interface) |
 | Scheduled jobs | Spring `@Scheduled` (slot generation, reminders, urgent-escalation checks) |
 | Build | Maven |
-| Error handling | Existing `GlobalExceptionHandler` + `ApiError` response shape |
+| Error handling | Spring `ResponseStatusException` responses; typed `ApiError` handler is planned |
 
 ### Frontend
 | Concern | Choice |
@@ -85,7 +85,7 @@ Your job on every task:
 
 | UI label | Role string | Typical user | Main capabilities |
 |---|---|---|---|
-| Student | `CUSTOMER` | Hostel resident | Report issue (room / common area), attach before-photo, pick preferred visit window, cancel/reschedule, confirm or reject completion, rate, upvote common-area issues |
+| Student | `STUDENT` | Hostel resident | Report issue (room / common area), attach before-photo, pick preferred visit window, cancel/reschedule, confirm or reject completion, rate, upvote common-area issues |
 | Maintenance Staff | `WORKER` | Electrician, plumber, carpenter, cleaner | See today's schedule (room + block + icon), mark in-progress, upload after-photo + student ID photo, mark Solved / Not Solved (with reason) |
 | Supervisor | `ADMIN` | Hostel supervisor | See all complaints (sorted by block/floor), assign/reassign staff, manage worker schedules, act on behalf of staff without smartphones, authorize locked-room entry, view analytics, print daily sheets |
 
@@ -111,9 +111,9 @@ Your job on every task:
 ## 6. Feature scope
 
 ### 6.1 Keep (already built — do not break)
-- JWT authentication + Google OAuth2 (with `PENDING_PROFILE` completion step)
+- JWT authentication (custom stateless JWT)
 - Role-based access (Student / Worker / Supervisor)
-- Complaint registration with photos (Cloudinary)
+- Complaint registration with a required image URL
 - Status tracking
 - Reviews & ratings
 - Admin/Supervisor dashboard
@@ -173,7 +173,7 @@ Your job on every task:
 
 ## 7. Data model
 
-> Existing tables stay (`users`, `workers`, `job_requests`, reviews). Table name `job_requests` and entity `Job_Requests` are kept to minimise churn. **Every change below needs a SQL migration** (`ddl-auto=validate`).
+> Existing tables are `users`, `workers`, and `job_requests`. The current entity is `JobRequest`. **Every production schema change needs a SQL migration; local development currently uses `ddl-auto=update` until Flyway is added.**
 
 ### 7.1 `job_requests` (modified)
 | Column | Notes |
@@ -293,24 +293,24 @@ Grouped separately from room complaints; upvotes raise priority; supervisor hand
 **Jobs (complaints)**
 | Method & path | Role | Purpose |
 |---|---|---|
-| `POST /jobs/create` | CUSTOMER | Create complaint (location, urgency, contact, before-photo) |
-| `GET /jobs/customer/{customerId}` | CUSTOMER | My complaints |
-| `GET /jobs/similar?block=&floor=&category=&locationType=` | CUSTOMER | Duplicate check |
-| `POST /jobs/{id}/upvote` | CUSTOMER | Upvote common-area complaint |
+| `POST /jobs/create` | STUDENT | Create complaint (location, urgency, contact, before-photo) |
+| `GET /jobs/customer/{customerId}` | STUDENT | My complaints |
+| `GET /jobs/similar?block=&floor=&category=&locationType=` | STUDENT | Duplicate check |
+| `POST /jobs/{id}/upvote` | STUDENT | Upvote common-area complaint |
 | `PUT /jobs/assign/{id}` (`workerId`) | ADMIN | Assign worker *(replaces `/accept`)* |
 | `PUT /jobs/status/{id}` | WORKER / ADMIN | Move status; body carries `notSolvedReason` when applicable |
 | `POST /jobs/{id}/complete` | WORKER / ADMIN | After-photo + ID photo → `COMPLETED` |
-| `PUT /jobs/{id}/confirm` · `/reject` | CUSTOMER | Student confirmation |
-| `PUT /jobs/{id}/cancel` | CUSTOMER / ADMIN | Cancel |
+| `PUT /jobs/{id}/confirm` · `/reject` | STUDENT | Student confirmation |
+| `PUT /jobs/{id}/cancel` | STUDENT / ADMIN | Cancel |
 | `GET /jobs/my-assigned` | WORKER | Assigned jobs |
 | `GET /jobs/worker/schedule/today` | WORKER | Today's schedule |
 
 **Time slots**
 | Method & path | Role | Purpose |
 |---|---|---|
-| `GET /slots/available?workerId=&date=` | CUSTOMER | Available windows |
-| `POST /slots/book` | CUSTOMER | Book slot for a job |
-| `PUT /slots/{id}/cancel` | CUSTOMER / ADMIN | Cancel & free slot |
+| `GET /slots/available?workerId=&date=` | STUDENT | Available windows |
+| `POST /slots/book` | STUDENT | Book slot for a job |
+| `PUT /slots/{id}/cancel` | STUDENT / ADMIN | Cancel & free slot |
 
 **Admin / Supervisor**
 | Method & path | Purpose |
@@ -415,11 +415,11 @@ Grouped separately from room complaints; upvotes raise priority; supervisor hand
 ## 15. Configuration & deployment
 
 **Environment variables** (loaded via `.env` / hosting dashboard; never commit):
-`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_EXPIRATION_MS`, `GROQ_API_KEY`, `FRONTEND_URL` (CORS), `PORT`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, plus new: Firebase service-account credentials and the SMS provider key.
+`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `JWT_EXPIRATION_SECONDS`, `UNIVERSITY_EMAIL_DOMAIN`, `CORS_ALLOWED_ORIGINS`, and `PORT`. Planned integrations may later add provider-specific notification and image-storage credentials.
 
 **Frontend env:** API base URL, Firebase web config, VAPID key.
 
-**Deploy:** push to GitHub → Vercel (frontend) · Render (backend) · Railway (MySQL). Run SQL migrations on Railway **before** deploying backend changes (because of `ddl-auto=validate`).
+**Deploy:** push to GitHub → Vercel (frontend) · Render (backend) · Railway (MySQL). Add Flyway and run migrations on Railway before deploying schema changes.
 
 ---
 
@@ -447,13 +447,16 @@ Grouped separately from room complaints; upvotes raise priority; supervisor hand
 
 ## 17. Known issues in the existing code (fix while touching these files)
 
-1. `JobRequestController` imports `javax.validation.Valid` — with Spring Boot 4 / `jakarta.persistence` elsewhere this should be **`jakarta.validation.Valid`**.
-2. `Job_Requests` all-args constructor assigns `beforeImageUrl`/`afterImageUrl` to themselves (they are not constructor parameters) — fix or remove the constructor.
-3. `GlobalExceptionHandler` maps **every** `RuntimeException` to HTTP 400, which hides genuine server errors; introduce specific exceptions (e.g. invalid state transition, slot already booked → 409).
-4. `UserServiceImpl` still depends on `GujaratLocationCatalog` and worker GPS coordinates — remove with the worker model change.
-5. `SecurityConfig` still lists `/api/quotes/**` and radius-feed endpoints — remove.
-6. `findWorkerJobFeedByRadius` native Haversine query — delete.
-7. `ddl-auto=validate` means schema and entities must match exactly — ship each change with its SQL script.
+This section describes the current `com.example.hostel_managment.demo` backend only; it is not a checklist inherited from the marketplace project.
+
+1. Public signup must create `STUDENT` accounts only. Staff accounts are created by an authenticated supervisor through the admin staff endpoint.
+2. Slot booking and cancellation must verify the authenticated student's ownership, assigned worker, scheduled-slot state, booking window, and slot date. A shared release path must be used when a scheduled job is rejected, marked not solved, or reassigned.
+3. Entry-log authorization must take `authorizedByUserId` from the authenticated supervisor, never trust the request body, and workers may update only their own logs.
+4. Similar-job responses must remain privacy-safe and must not expose another student's contact number, identifiers, or photos.
+5. The JWT secret is mandatory through `JWT_SECRET`; production CORS is configured through `CORS_ALLOWED_ORIGINS`; unauthenticated requests return HTTP 401.
+6. The application clock is Asia/Kolkata so date-sensitive scheduling is correct for hostel operations.
+7. The `(worker_id, slot_date, start_time)` uniqueness constraint belongs on `time_slots`; the redundant `uk_job_request_id` constraint is not part of the entity model.
+8. A maintained JWT library, Flyway migrations, a typed API error handler, worker schedule/slot generation, notifications, upvotes, photo upload, reviews, analytics, and `HostelLocationCatalog` remain planned work. Do not document them as already implemented.
 
 ---
 

@@ -46,6 +46,9 @@ public class Worker {
     @Column(name = "working_days", length = 50)
     private String workingDays;
 
+    @Column(name = "slot_duration_minutes", nullable = false)
+    private int slotDurationMinutes;
+
     @Column(name = "has_smartphone", nullable = false)
     private boolean hasSmartphone;
 
@@ -60,6 +63,14 @@ public class Worker {
             boolean available, String shiftStart, String shiftEnd, String workingDays,
             boolean hasSmartphone, boolean managedBySupervisor,
             PreferredLanguage preferredLanguage) {
+        this(userId, name, tradeCategory, experienceYears, available, shiftStart, shiftEnd,
+                workingDays, 60, hasSmartphone, managedBySupervisor, preferredLanguage);
+    }
+
+    public Worker(Long userId, String name, TradeCategory tradeCategory, int experienceYears,
+            boolean available, String shiftStart, String shiftEnd, String workingDays,
+            int slotDurationMinutes, boolean hasSmartphone, boolean managedBySupervisor,
+            PreferredLanguage preferredLanguage) {
         this.userId = userId;
         this.name = name;
         this.tradeCategory = tradeCategory;
@@ -68,6 +79,7 @@ public class Worker {
         this.shiftStart = shiftStart;
         this.shiftEnd = shiftEnd;
         this.workingDays = workingDays;
+        this.slotDurationMinutes = slotDurationMinutes;
         this.hasSmartphone = hasSmartphone;
         this.managedBySupervisor = managedBySupervisor;
         this.preferredLanguage = preferredLanguage;
