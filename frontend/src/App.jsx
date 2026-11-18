@@ -14,7 +14,7 @@ import { rolePath, useAuthStore } from './store/authStore'
 import ProtectedRoute from './components/ProtectedRoute'
 
 const formatLabel = (value) => value?.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) ?? 'Unknown'
-const mapJob = (job) => ({ ...job, displayId: `JOB-${job.id}`, title: job.problemDescription, category: formatLabel(job.category), priority: job.urgency, status: job.status, staff: job.workerId ? `Worker #${job.workerId}` : 'Unassigned', location: job.locationType === 'ROOM' ? `${job.block}${job.roomNumber ? `, Room ${job.roomNumber}` : ''}` : job.areaName || job.block, time: job.scheduledSlotDate ? `${job.scheduledSlotDate} ${job.scheduledStartTime?.slice(0, 5)}` : (job.createdAt ? new Date(job.createdAt).toLocaleString() : '—') })
+const mapJob = (job) => ({ ...job, displayId: `JOB-${job.id}`, title: job.problemDescription, category: formatLabel(job.category), urgency: job.urgency, status: job.status, staff: job.workerId ? `Worker #${job.workerId}` : 'Unassigned', location: job.locationType === 'ROOM' ? `${job.block}${job.roomNumber ? `, Room ${job.roomNumber}` : ''}` : job.areaName || job.block, time: job.scheduledSlotDate ? `${job.scheduledSlotDate} ${job.scheduledStartTime?.slice(0, 5)}` : (job.createdAt ? new Date(job.createdAt).toLocaleString() : '—') })
 const mapWorker = (worker) => ({ id: worker.id, initials: worker.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(), name: worker.name, role: formatLabel(worker.tradeCategory), jobs: 0, status: worker.available ? 'On duty' : 'Unavailable' })
 
 function DataMessage({ children }) {
