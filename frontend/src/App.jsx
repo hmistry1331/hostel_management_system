@@ -49,7 +49,20 @@ function AdminArea() {
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const load = () => Promise.all([getJobsForAdmin(), getAvailableWorkers()]).then(([jobsResponse, workersResponse]) => { setJobs(jobsResponse.data.map(mapJob)); setStaff(workersResponse.data.map(mapWorker)) }).catch(() => setError('Unable to load admin data from the backend.')).finally(() => setLoading(false))
+  const load = () => Promise.all([getJobsForAdmin(), getAvailableWorkers()])
+    .then(([jobsResponse, workersResponse]) => {
+      setJobs(jobsResponse.data.map(mapJob))
+      setStaff(workersResponse.data.map(mapWorker))
+      setError('')
+    })
+    .catch((requestError) => {
+      const status = requestError.response?.status
+      const url = requestError.config?.url
+      setError(status
+        ? `Unable to load admin data (${status})${url ? ` from ${url}` : ''}.`
+        : 'Unable to reach the backend. Check the API URL and network connection.')
+    })
+    .finally(() => setLoading(false))
   useEffect(() => {
     load()
     const dutyRefresh = window.setInterval(load, 60 * 1000)
