@@ -8,7 +8,7 @@ The project has two separate applications:
 
 - **Frontend:** React 19 with Vite
 - **Backend:** Spring Boot REST API with Java 22
-- **Database:** MySQL
+- **Database:** PostgreSQL
 
 ## What the system does
 
@@ -51,8 +51,8 @@ Frontend (Vite)
 Backend (Spring Boot)
   |
   | Spring Data JPA
-  v
-MySQL database
+v
+PostgreSQL database
 ```
 
 ### Frontend structure
@@ -130,21 +130,21 @@ Install the following before running the project:
 - Java 22
 - Maven, or use the included Maven Wrapper
 - Node.js and npm
-- MySQL
+- PostgreSQL
 
 ## Local setup
 
-### 1. Configure MySQL
+### 1. Configure PostgreSQL
 
-Create a database named `hostel_management`. The default local connection
-expects:
+Create a database or use a hosted PostgreSQL database. A local connection can
+use:
 
 ```text
 Host: localhost
-Port: 3307
+Port: 5432
 Database: hostel_management
-Username: springstudent
-Password: springstudent
+Username: postgres
+Password: <your-password>
 ```
 
 If your database uses different values, set the backend environment variables
@@ -157,9 +157,9 @@ The backend reads configuration from environment variables. `JWT_SECRET` is
 required.
 
 ```text
-DB_URL=jdbc:mysql://localhost:3307/hostel_management
-DB_USERNAME=springstudent
-DB_PASSWORD=springstudent
+DB_URL=jdbc:postgresql://localhost:5432/hostel_management
+DB_USERNAME=postgres
+DB_PASSWORD=<your-password>
 JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRATION_SECONDS=604800
 UNIVERSITY_EMAIL_DOMAIN=
